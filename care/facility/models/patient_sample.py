@@ -46,7 +46,6 @@ class PatientSample(FacilityBaseModel):
         "SENT_TO_COLLECTON_CENTRE": {"RECEIVED_AND_FORWARED", "RECEIVED_AT_LAB", "COMPLETED"},
         "RECEIVED_AND_FORWARED": {"RECEIVED_AT_LAB", "COMPLETED"},
         "RECEIVED_AT_LAB": {"COMPLETED"},
-        "COMPLETED" : {"COMPLETED"}
     }
 
     patient = models.ForeignKey(PatientRegistration, on_delete=models.PROTECT)
@@ -104,15 +103,16 @@ class PatientSample(FacilityBaseModel):
 
     @staticmethod
     def has_read_permission(request):
-        return request.user.is_superuser or request.user.user_type >= User.TYPE_VALUE_MAP["Staff"]
+        # return request.user.is_superuser or request.user.user_type >= User.TYPE_VALUE_MAP["Staff"]
+        return True
 
     def has_object_read_permission(self, request):
         if self.testing_facility:
             test_facility = request.user in self.testing_facility.users.all()
-
         return (
             request.user.is_superuser
             or request.user == self.consultation.facility.created_by
+            or request.user == self.consultation.assigned_to_mbbs_student
             or (
                 request.user.district == self.consultation.facility.district
                 and request.user.user_type >= User.TYPE_VALUE_MAP["DistrictLabAdmin"]

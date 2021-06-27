@@ -9,13 +9,14 @@ from care.facility.api.viewsets.facility_capacity import FacilityCapacityViewSet
 from care.facility.api.viewsets.file_upload import FileUploadViewSet
 from care.facility.api.viewsets.hospital_doctor import HospitalDoctorViewSet
 from care.facility.api.viewsets.inventory import (
+    FacilityInventoryBurnRateViewSet,
     FacilityInventoryItemViewSet,
     FacilityInventoryLogViewSet,
     FacilityInventoryMinQuantityViewSet,
     FacilityInventorySummaryViewSet,
 )
 from care.facility.api.viewsets.notification import NotificationViewSet
-from care.facility.api.viewsets.patient import FacilityPatientStatsHistoryViewSet, PatientNotesViewSet, PatientSearchViewSet, PatientViewSet
+from care.facility.api.viewsets.patient import FacilityPatientStatsHistoryViewSet, PatientSearchViewSet, PatientViewSet
 from care.facility.api.viewsets.patient_consultation import DailyRoundsViewSet, PatientConsultationViewSet
 from care.facility.api.viewsets.patient_external_test import PatientExternalTestViewSet
 from care.facility.api.viewsets.patient_investigation import (
@@ -32,7 +33,6 @@ from care.facility.api.viewsets.prescription_supplier import (
     PrescriptionSupplierConsultationViewSet,
     PrescriptionSupplierViewSet,
 )
-from care.facility.api.viewsets.resources import ResourceRequestViewSet, ResourceRequestCommentViewSet
 from care.facility.api.viewsets.shifting import ShiftingViewSet
 from care.facility.summarisation.district.patient_summary import DistrictPatientSummaryViewSet
 from care.facility.summarisation.facility_capacity import FacilityCapacitySummaryViewSet
@@ -42,11 +42,14 @@ from care.facility.summarisation.triage_summary import TriageSummaryViewSet
 from care.users.api.viewsets.lsg import DistrictViewSet, LocalBodyViewSet, StateViewSet, WardViewSet
 from care.users.api.viewsets.users import UserViewSet
 
+from care.life.api.viewsets.lifedata import LifeDataViewSet
+
 if settings.DEBUG:
     router = DefaultRouter()
 else:
     router = SimpleRouter()
 
+router.register("life/data", LifeDataViewSet)
 
 router.register("users", UserViewSet)
 router.register("facility", FacilityViewSet)
@@ -99,14 +102,9 @@ router.register(
 
 
 router.register("items", FacilityInventoryItemViewSet)
-# router.register("burn_rate", FacilityInventoryBurnRateViewSet)
+router.register("burn_rate", FacilityInventoryBurnRateViewSet)
 
 router.register("shift", ShiftingViewSet, basename="patient-shift")
-
-router.register("resource", ResourceRequestViewSet, basename="resource-request")
-
-resource_nested_router = NestedSimpleRouter(router, r"resource", lookup="resource")
-resource_nested_router.register(r"comment", ResourceRequestCommentViewSet)
 
 router.register("investigation/group", InvestigationGroupViewset)
 router.register("investigation", PatientInvestigationViewSet)
@@ -119,13 +117,12 @@ facility_nested_router.register(r"patient_stats", FacilityPatientStatsHistoryVie
 facility_nested_router.register(r"inventory", FacilityInventoryLogViewSet)
 facility_nested_router.register(r"inventorysummary", FacilityInventorySummaryViewSet)
 facility_nested_router.register(r"min_quantity", FacilityInventoryMinQuantityViewSet)
-# facility_nested_router.register("burn_rate", FacilityInventoryBurnRateViewSet)
+facility_nested_router.register("burn_rate", FacilityInventoryBurnRateViewSet)
 
 
 patient_nested_router = NestedSimpleRouter(router, r"patient", lookup="patient")
 patient_nested_router.register(r"test_sample", PatientSampleViewSet)
 patient_nested_router.register(r"investigation", PatientInvestigationSummaryViewSet)
-patient_nested_router.register(r"notes", PatientNotesViewSet)
 
 consultation_nested_router = NestedSimpleRouter(router, r"consultation", lookup="consultation")
 consultation_nested_router.register(r"daily_rounds", DailyRoundsViewSet)
@@ -137,5 +134,4 @@ urlpatterns = [
     url(r"^", include(facility_nested_router.urls)),
     url(r"^", include(patient_nested_router.urls)),
     url(r"^", include(consultation_nested_router.urls)),
-    url(r"^", include(resource_nested_router.urls)),
 ]

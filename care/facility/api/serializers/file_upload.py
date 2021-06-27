@@ -1,4 +1,3 @@
-from care.facility.models.patient_sample import PatientSample
 from care.facility.api.serializers import facility
 from django.core.exceptions import ValidationError
 from django.db.models import F
@@ -27,11 +26,17 @@ def check_permissions(file_type, associating_id, user):
                 if patient.last_consultation.assigned_to:
                     if user == patient.last_consultation.assigned_to:
                         return patient.id
+                if patient.last_consultation.assigned_to_mbbs_student:
+                    if user == patient.last_consultation.assigned_to_mbbs_student:
+                        return patient.id
             if not has_facility_permission(user, patient.facility):
                 raise Exception("No Permission")
             return patient.id
-        elif file_type == FileUpload.FileType.CONSULTATION.value:
+        if file_type == FileUpload.FileType.CONSULTATION.value:
             consultation = PatientConsultation.objects.get(external_id=associating_id)
+            if consultation.assigned_to_mbbs_student:
+                if user == consultation.assigned_to_mbbs_student:
+                    return consultation.id
             if consultation.assigned_to:
                 if user == consultation.assigned_to:
                     return consultation.id
@@ -41,19 +46,8 @@ def check_permissions(file_type, associating_id, user):
             ):
                 raise Exception("No Permission")
             return consultation.id
-        elif file_type == FileUpload.FileType.SAMPLE_MANAGEMENT.value:
-            sample = PatientSample.objects.get(external_id=associating_id)
-            patient = sample.patient
-            if sample.consultation:
-                if sample.consultation.assigned_to:
-                    if user == sample.consultation.assigned_to:
-                        return sample.id
-            if not has_facility_permission(user, patient.facility):
-                raise Exception("No Permission")
-            return sample.id
         else:
             raise Exception("Undefined File Type")
-
     except Exception:
         raise serializers.ValidationError({"permission": "denied"})
 
@@ -61,7 +55,6 @@ def check_permissions(file_type, associating_id, user):
 class FileUploadCreateSerializer(serializers.ModelSerializer):
 
     file_type = ChoiceField(choices=FileUpload.FileTypeChoices)
-    file_category = ChoiceField(choices=FileUpload.FileCategoryChoices, required=False)
 
     signed_url = serializers.CharField(read_only=True)
     associating_id = serializers.CharField(write_only=True)
@@ -72,7 +65,6 @@ class FileUploadCreateSerializer(serializers.ModelSerializer):
         model = FileUpload
         fields = (
             "file_type",
-            "file_category",
             "name",
             "associating_id",
             "signed_url",
@@ -99,7 +91,7 @@ class FileUploadListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FileUpload
-        fields = ("id", "name", "uploaded_by", "created_date", "file_category")
+        fields = ("id", "name", "uploaded_by", "created_date")
         read_only_fields = ("associating_id", "name", "created_date")
 
 
@@ -112,5 +104,5 @@ class FileUploadRetrieveSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FileUpload
-        fields = ("id", "name", "uploaded_by", "created_date", "read_signed_url", "file_category")
+        fields = ("id", "name", "uploaded_by", "created_date", "read_signed_url")
         read_only_fields = ("associating_id", "name", "created_date")

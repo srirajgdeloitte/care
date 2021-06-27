@@ -40,6 +40,8 @@ class PatientConsultationSerializer(serializers.ModelSerializer):
 
     assigned_to = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, allow_null=True)
 
+    assigned_to_mbbs_student = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, allow_null=True)
+
     action = ChoiceField(choices=PatientRegistration.ActionChoices, write_only=True, required=False)
     review_time = serializers.IntegerField(default=-1, write_only=True, required=False)
 
@@ -48,13 +50,7 @@ class PatientConsultationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PatientConsultation
-        read_only_fields = TIMESTAMP_FIELDS + (
-            "last_updated_by_telemedicine",
-            "discharge_date",
-            "last_edited_by",
-            "created_by",
-            "kasp_enabled_date",
-        )
+        read_only = TIMESTAMP_FIELDS + ("discharge_date", "last_edited_by", "created_by",)
         exclude = ("deleted", "external_id")
 
     def validate_bed_number(self, bed_number):
@@ -70,7 +66,7 @@ class PatientConsultationSerializer(serializers.ModelSerializer):
         instance.last_edited_by = self.context["request"].user
 
         if instance.discharge_date:
-            raise ValidationError({"consultation": ["Discharged Consultation data cannot be updated"]})
+            raise ValidationError({"consultation": [f"Discharged Consultation data cannot be updated"]})
 
         if instance.suggestion == SuggestionChoices.OP:
             instance.discharge_date = localtime(now())
@@ -89,32 +85,7 @@ class PatientConsultationSerializer(serializers.ModelSerializer):
                     patient.review_time = localtime(now()) + timedelta(minutes=review_time)
             patient.save()
 
-        validated_data["last_updated_by_telemedicine"] = self.context["request"].user == instance.assigned_to
-
-        if "is_kasp" in validated_data:
-            if validated_data["is_kasp"] and (not instance.is_kasp):
-                validated_data["kasp_enabled_date"] = localtime(now())
-
-        if "assigned_to" in validated_data:
-            if validated_data["assigned_to"] != instance.assigned_to:
-                NotificationGenerator(
-                    event=Notification.Event.PATIENT_CONSULTATION_ASSIGNMENT,
-                    caused_by=self.context["request"].user,
-                    caused_object=instance,
-                    facility=instance.patient.facility,
-                    notification_mediums=[Notification.Medium.SYSTEM, Notification.Medium.WHATSAPP],
-                ).generate()
-
-        consultation = super().update(instance, validated_data)
-
-        NotificationGenerator(
-            event=Notification.Event.PATIENT_CONSULTATION_UPDATED,
-            caused_by=self.context["request"].user,
-            caused_object=consultation,
-            facility=consultation.patient.facility,
-        ).generate()
-
-        return consultation
+        return super().update(instance, validated_data)
 
     def create(self, validated_data):
 
@@ -127,18 +98,9 @@ class PatientConsultationSerializer(serializers.ModelSerializer):
 
         if validated_data["patient"].last_consultation:
             if self.context["request"].user == validated_data["patient"].last_consultation.assigned_to:
-                raise ValidationError(
-                    {"Permission Denied": "Only Facility Staff can create consultation for a Patient"},
+                return ValidationError(
+                    {"Permission Denied": "Only Facility Admins can create consultation for a Patient"},
                 )
-
-        if validated_data["patient"].last_consultation:
-            if not validated_data["patient"].last_consultation.discharge_date:
-                raise ValidationError({"consultation": "Exists please Edit Existing Consultation"})
-
-        if "is_kasp" in validated_data:
-            if validated_data["is_kasp"]:
-                validated_data["kasp_enabled_date"] = localtime(now())
-
         consultation = super().create(validated_data)
         consultation.created_by = self.context["request"].user
         consultation.last_edited_by = self.context["request"].user
@@ -165,15 +127,16 @@ class PatientConsultationSerializer(serializers.ModelSerializer):
             facility=patient.facility,
         ).generate()
 
-        if consultation.assigned_to:
-            NotificationGenerator(
-                event=Notification.Event.PATIENT_CONSULTATION_ASSIGNMENT,
-                caused_by=self.context["request"].user,
-                caused_object=consultation,
-                facility=consultation.patient.facility,
-                notification_mediums=[Notification.Medium.SYSTEM, Notification.Medium.WHATSAPP],
-            ).generate()
+        return consultation
 
+    def update(self, instance, validated_data):
+        consultation = super().update(instance, validated_data)
+        NotificationGenerator(
+            event=Notification.Event.PATIENT_CONSULTATION_UPDATED,
+            caused_by=self.context["request"].user,
+            caused_object=consultation,
+            facility=consultation.patient.facility,
+        ).generate()
         return consultation
 
     def validate(self, obj):
@@ -211,10 +174,10 @@ class DailyRoundSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DailyRound
-        read_only_fields = ("last_updated_by_telemedicine", "created_by_telemedicine")
         exclude = ("deleted",)
 
     def update(self, instance, validated_data):
+
         if instance.consultation.discharge_date:
             raise ValidationError({"consultation": [f"Discharged Consultation data cannot be updated"]})
 
@@ -230,11 +193,6 @@ class DailyRoundSerializer(serializers.ModelSerializer):
                 if review_time >= 0:
                     patient.review_time = localtime(now()) + timedelta(minutes=review_time)
             patient.save()
-
-        validated_data["last_updated_by_telemedicine"] = False
-        if self.context["request"].user == instance.consultation.assigned_to:
-            validated_data["last_updated_by_telemedicine"] = True
-        instance.consultation.save(update_fields=["last_updated_by_telemedicine"])
 
         NotificationGenerator(
             event=Notification.Event.PATIENT_CONSULTATION_UPDATE_UPDATED,
@@ -260,17 +218,7 @@ class DailyRoundSerializer(serializers.ModelSerializer):
                     patient.review_time = localtime(now()) + timedelta(minutes=review_time)
             patient.save()
 
-        validated_data["created_by_telemedicine"] = False
-        validated_data["last_updated_by_telemedicine"] = False
-
-        if self.context["request"].user == validated_data["consultation"].assigned_to:
-            validated_data["created_by_telemedicine"] = True
-            validated_data["last_updated_by_telemedicine"] = True
-
         daily_round_obj = super().create(validated_data)
-
-        daily_round_obj.consultation.last_updated_by_telemedicine = validated_data["last_updated_by_telemedicine"]
-        daily_round_obj.consultation.save(update_fields=["last_updated_by_telemedicine"])
 
         NotificationGenerator(
             event=Notification.Event.PATIENT_CONSULTATION_UPDATE_CREATED,

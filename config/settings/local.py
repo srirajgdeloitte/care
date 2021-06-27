@@ -6,8 +6,7 @@ from .base import env
 # GENERAL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#debug
-DEBUG = False
-ALLOWED_HOSTS = ["*"]
+DEBUG = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
 SECRET_KEY = env("DJANGO_SECRET_KEY", default="eXZQzOzx8gV38rDG0Z0fFZWweUGl3LwMZ9aTKqJiXQTI0nKMh0Z7sbHfqT8KFEnd",)
 # The first key will be used to encrypt all new data, and decryption of existing values will be attempted
@@ -81,7 +80,6 @@ if os.name == "nt":
 # Your stuff...
 # ------------------------------------------------------------------------------
 
-AUDIT_LOG_ENABLED = True
 
 # Celery
 # ------------------------------------------------------------------------------
@@ -100,5 +98,3 @@ SIMPLE_JWT = {
 }
 
 RUNSERVER_PLUS_PRINT_SQL_TRUNCATE = 100000
-
-AUDIT_LOG_ENABLED = True

@@ -5,8 +5,7 @@ from django.db.models.query_utils import Q
 from django_filters import rest_framework as filters
 from djqscsv import render_to_csv_response
 from dry_rest_permissions.generics import DRYPermissionFiltersBase, DRYPermissions
-from rest_framework import filters as drf_filters
-from rest_framework import mixins, status, viewsets
+from rest_framework import status, viewsets, mixins
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -21,14 +20,14 @@ from care.facility.api.serializers.patient import PatientListSerializer
 from care.facility.models import (
     Facility,
     FacilityCapacity,
-    FacilityPatientStatsHistory,
-    HospitalDoctors,
     PatientRegistration,
-    facility,
+    HospitalDoctors,
+    FacilityPatientStatsHistory,
 )
-from care.users.api.serializers.user import UserBaseMinimumSerializer
 from care.users.models import User
 from config.utils import get_psql_search_tokens
+
+from care.users.api.serializers.user import UserBaseMinimumSerializer
 
 
 class FacilityFilter(filters.FilterSet):
@@ -54,15 +53,15 @@ class FacilityQSPermissions(DRYPermissionFiltersBase):
         else:
             queryset = queryset.filter(users__id__exact=request.user.id)
 
-        # search_text = request.query_params.get("search_text")
-        # if search_text:
-        #     vector = SearchVector("name", "district__name", "state__name")
-        #     query = SearchQuery(get_psql_search_tokens(search_text), search_type="raw")
-        #     queryset = (
-        #         queryset.annotate(search_text=vector, rank=SearchRank(vector, query))
-        #         .filter(search_text=query)
-        #         .order_by("-rank")
-        #     )
+        search_text = request.query_params.get("search_text")
+        if search_text:
+            vector = SearchVector("name", "district__name", "state__name")
+            query = SearchQuery(get_psql_search_tokens(search_text), search_type="raw")
+            queryset = (
+                queryset.annotate(search_text=vector, rank=SearchRank(vector, query))
+                .filter(search_text=query)
+                .order_by("-rank")
+            )
         return queryset
 
 
@@ -71,21 +70,21 @@ class FacilityViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
-    mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
     """Viewset for facility CRUD operations."""
 
-    queryset = Facility.objects.all().select_related("ward", "local_body", "district", "state")
+    queryset = Facility.objects.filter(is_active=True).select_related("ward", "local_body", "district", "state")
     permission_classes = (
         IsAuthenticated,
         DRYPermissions,
     )
-    filter_backends = (FacilityQSPermissions, filters.DjangoFilterBackend, drf_filters.SearchFilter)
+    filter_backends = (
+        FacilityQSPermissions,
+        filters.DjangoFilterBackend,
+    )
     filterset_class = FacilityFilter
     lookup_field = "external_id"
-
-    search_fields = ["name", "district__name", "state__name"]
 
     FACILITY_CAPACITY_CSV_KEY = "capacity"
     FACILITY_DOCTORS_CSV_KEY = "doctors"
@@ -96,16 +95,6 @@ class FacilityViewSet(
             return FacilityBasicInfoSerializer
         else:
             return FacilitySerializer
-
-    def destroy(self, request, *args, **kwargs):
-        if request.user.is_superuser or request.user.user_type >= User.TYPE_VALUE_MAP["DistrictLabAdmin"]:
-            if not PatientRegistration.objects.filter(facility=self.get_object(), is_active=True).exists():
-                return super().destroy(request, *args, **kwargs)
-            else:
-                return Response(
-                    {"facility": "cannot delete facility with active patients"}, status=status.HTTP_403_FORBIDDEN
-                )
-        return Response({"permission": "denied"}, status=status.HTTP_403_FORBIDDEN)
 
     def list(self, request, *args, **kwargs):
         """
@@ -281,7 +270,7 @@ class FacilityViewSet(
 class AllFacilityViewSet(
     mixins.RetrieveModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet,
 ):
-    queryset = Facility.objects.all().select_related("local_body", "district", "state")
+    queryset = Facility.objects.filter(is_active=True).select_related("local_body", "district", "state")
     serializer_class = FacilityBasicInfoSerializer
     filter_backends = (filters.DjangoFilterBackend,)
     filterset_class = FacilityFilter

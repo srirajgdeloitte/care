@@ -97,7 +97,7 @@ THIRD_PARTY_APPS = [
     "django_rest_passwordreset",
 ]
 
-LOCAL_APPS = ["care.users.apps.UsersConfig", "care.facility", "care.audit_log.apps.AuditLogConfig"]
+LOCAL_APPS = ["care.users.apps.UsersConfig", "care.facility", "care.life"]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -158,7 +158,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "simple_history.middleware.HistoryRequestMiddleware",
     "maintenance_mode.middleware.MaintenanceModeMiddleware",
-    "care.audit_log.middleware.AuditLogMiddleware",
 ]
 
 # STATIC
@@ -304,8 +303,7 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
-    "PAGE_SIZE": 14,
-    "SEARCH_PARAM": "search_text",
+    "PAGE_SIZE": 500,
 }
 
 # Your stuff...
@@ -346,6 +344,7 @@ CORS_ORIGIN_ALLOW_ALL = True
 
 MAINTENANCE_MODE = int(env("MAINTENANCE_MODE", default="0"))
 
+
 # Celery
 # ------------------------------------------------------------------------------
 if USE_TZ:
@@ -371,7 +370,9 @@ CELERY_TASK_SOFT_TIME_LIMIT = 1800
 # CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseSc:wqheduler"
 CELERY_TIMEZONE = "Asia/Kolkata"
 
+
 CSV_REQUEST_PARAMETER = "csv"
+
 
 DEFAULT_FROM_EMAIL = env("EMAIL_FROM", default="Coronasafe network <care@coronasafe.network>")
 
@@ -403,14 +404,17 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE3OtP02wfkEojpP7tvyA64CAnVZeb
 bxFda+u+X3ZgMsBoAQK6Jul0Efxz8nGE2SlFr2CZPRqz0rPZQGAiiYugeg==
 -----END PUBLIC KEY-----"""
 
+
 DEFAULT_VAPID_PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgJT2TwOHtFu/HZ1T5
 2MofEr/yxu3ULqVTcjH9Sno6ML2hRANCAATc60/TbB+QSiOk/u2/IDrgICdVl5tv
 EV1r675fdmAywGgBArom6XQR/HPycYTZKUWvYJk9GrPSs9lAYCKJi6B6
 -----END PRIVATE KEY-----"""
 
+
 VAPID_PUBLIC_KEY = env("VAPID_PUBLIC_KEY", default=DEFAULT_VAPID_PUBLIC_KEY)
 VAPID_PRIVATE_KEY = env("VAPID_PRIVATE_KEY", default=DEFAULT_VAPID_PRIVATE_KEY)
+
 
 #######################
 # File Upload Parameters
@@ -421,40 +425,11 @@ FILE_UPLOAD_KEY = env("FILE_UPLOAD_KEY", default="")
 FILE_UPLOAD_SECRET = env("FILE_UPLOAD_SECRET", default="")
 
 
-# Audit logs
-AUDIT_LOG_ENABLED = env.bool("AUDIT_LOG_ENABLED", default=False)
-AUDIT_LOG = {
-    "globals": {
-        "exclude": {
-            "applications": [
-                "plain:contenttypes",
-                "plain:admin",
-                "plain:basehttp",
-                "glob:session*",
-                "glob:auth*",
-                "plain:migrations",
-                "plain:audit_log",
-            ]
-        }
-    },
-    "models": {
-        "exclude": {
-            "applications": [],
-            "models": ["plain:facility.HistoricalPatientRegistration"],
-            "fields": {
-                "facility.PatientRegistration": ["name", "phone_number", "emergency_phone_number", "address"],
-                "facility.PatientExternalTest": ["name", "address", "mobile_number"],
-            },
-        }
-    },
-}
+#######################
+# Life Parameters
 
-SEND_SMS_NOTIFICATION = False
+LIFE_S3_ENDPOINT = env("LIFE_S3_ENDPOINT", default="")
+LIFE_S3_ACCESS_KEY = env("LIFE_S3_ACCESS_KEY", default="")
+LIFE_S3_SECRET = env("LIFE_S3_SECRET", default="")
+LIFE_S3_BUCKET = env("LIFE_S3_BUCKET", default="")
 
-# Whatsapp Integrations
-ENABLE_WHATSAPP = env.bool("ENABLE_WHATSAPP", default=False)
-WHATSAPP_API_ENDPOINT = env("WHATSAPP_API_ENDPOINT", default="")
-WHATSAPP_API_USERNAME = env("WHATSAPP_API_USERNAME", default="")
-WHATSAPP_API_PASSWORD = env("WHATSAPP_API_PASSWORD", default="")
-WHATSAPP_ENCRYPTION_KEY = env("WHATSAPP_ENCRYPTION_KEY", default="")
-WHATSAPP_MESSAGE_CONFIG = env("WHATSAPP_MESSAGE_CONFIG", default=None)

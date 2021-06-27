@@ -1,7 +1,6 @@
 import datetime
 import enum
 
-from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from fernet_fields import EncryptedCharField, EncryptedIntegerField
 from partial_index import PQ, PartialIndex
@@ -13,7 +12,6 @@ from care.facility.models import (
     BaseModel,
     DiseaseStatusEnum,
     District,
-    Facility,
     FacilityBaseModel,
     LocalBody,
     PatientBaseModel,
@@ -53,12 +51,6 @@ class PatientRegistration(PatientBaseModel, PatientPermissionMixin):
         STAY = 30
 
     SourceChoices = [(e.value, e.name) for e in SourceEnum]
-
-    class vaccineEnum(enum.Enum):
-        COVISHIELD = "CoviShield"
-        COVAXIN = "Covaxin"
-
-    vaccineChoices = [(e.value, e.name) for e in vaccineEnum]
 
     class ActionEnum(enum.Enum):
         PENDING = 10
@@ -100,7 +92,6 @@ class PatientRegistration(PatientBaseModel, PatientPermissionMixin):
 
     # address_old = EncryptedTextField(default="")
     address = models.TextField(default="")
-    permanent_address = models.TextField(default="")
 
     pincode = models.IntegerField(default=0, blank=True, null=True)
 
@@ -190,9 +181,7 @@ class PatientRegistration(PatientBaseModel, PatientPermissionMixin):
 
     last_consultation = models.ForeignKey(PatientConsultation, on_delete=models.SET_NULL, null=True, default=None)
 
-    will_donate_blood = models.BooleanField(
-        default=None, null=True, verbose_name="Is Patient Willing to donate Blood",
-    )
+    will_donate_blood = models.BooleanField(default=None, null=True, verbose_name="Is Patient Willing to donate Blood",)
 
     fit_for_blood_donation = models.BooleanField(
         default=None, null=True, verbose_name="Is Patient fit for donating Blood",
@@ -228,16 +217,11 @@ class PatientRegistration(PatientBaseModel, PatientPermissionMixin):
     # IDSP Requirements End
 
     # Vaccination Fields
-    is_vaccinated = models.BooleanField(default=False, verbose_name="Is the Patient Vaccinated Against COVID-19")
-    number_of_doses = models.PositiveIntegerField(
-        default=0, null=False, blank=False, validators=[MinValueValidator(0), MaxValueValidator(2)]
-    )
-    vaccine_name = models.CharField(choices=vaccineChoices, default=None, null=True, blank=False, max_length=15)
 
+    is_vaccinated = models.BooleanField(default=False, verbose_name="Is the Patient Vaccinated Against COVID-19")
     covin_id = models.CharField(
         max_length=15, default=None, null=True, blank=True, verbose_name="COVID-19 Vaccination ID",
     )
-    last_vaccinated_date = models.DateTimeField(null=True, blank=True, verbose_name="Date Last Vaccinated")
 
     # Extras
     cluster_name = models.CharField(
@@ -246,12 +230,6 @@ class PatientRegistration(PatientBaseModel, PatientPermissionMixin):
     is_declared_positive = models.BooleanField(default=None, null=True, verbose_name="Is Patient Declared Positive",)
     date_declared_positive = models.DateTimeField(
         null=True, blank=True, verbose_name="Date Patient is Declared Positive"
-    )
-
-    # Permission Scopes
-
-    assigned_to = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank="True", related_name="root_patient_assigned_to"
     )
 
     history = HistoricalRecords(excluded_fields=["patient_search_id", "meta_info"])
@@ -573,10 +551,3 @@ class PatientMobileOTP(BaseModel):
     is_used = models.BooleanField(default=False)
     phone_number = models.CharField(max_length=14, validators=[phone_number_regex])
     otp = models.CharField(max_length=10)
-
-
-class PatientNotes(FacilityBaseModel):
-    patient = models.ForeignKey(PatientRegistration, on_delete=models.PROTECT, null=False, blank=False)
-    facility = models.ForeignKey(Facility, on_delete=models.PROTECT, null=False, blank=False)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True,)
-    note = models.TextField(default="", blank=True)

@@ -32,8 +32,6 @@ REVERSE_SHIFTING_STATUS_CHOICES = inverse_choices(SHIFTING_STATUS_CHOICES)
 
 
 def has_facility_permission(user, facility):
-    if not facility:
-        return False
     return (
         user.is_superuser
         or (facility and user in facility.users.all())
@@ -101,16 +99,6 @@ class ShiftingSerializer(serializers.ModelSerializer):
         LIMITED_SHIFTING_STATUS = [REVERSE_SHIFTING_STATUS_CHOICES[x] for x in LIMITED_SHIFTING_STATUS_]
         LIMITED_ORGIN_STATUS = []
 
-        RECIEVING_REQUIRED_STATUS_ = [
-            "DESTINATION APPROVED",
-            "DESTINATION REJECTED",
-            "TRANSPORTATION TO BE ARRANGED",
-            "PATIENT TO BE PICKED UP",
-            "TRANSFER IN PROGRESS",
-            "COMPLETED",
-        ]
-        RECIEVING_REQUIRED_STATUS = [REVERSE_SHIFTING_STATUS_CHOICES[x] for x in RECIEVING_REQUIRED_STATUS_]
-
         user = self.context["request"].user
 
         if "is_kasp" in validated_data:
@@ -118,14 +106,21 @@ class ShiftingSerializer(serializers.ModelSerializer):
                 if not has_facility_permission(user, instance.shifting_approving_facility):
                     raise ValidationError({"kasp": ["Permission Denied"]})
 
+        if "breathlessness_level" in validated_data:
+            if not has_facility_permission(user, instance.shifting_approving_facility):
+                del validated_data["breathlessness_level"]
+
         if "status" in validated_data:
             if validated_data["status"] in LIMITED_RECIEVING_STATUS:
                 if instance.assigned_facility:
                     if not has_facility_permission(user, instance.assigned_facility):
                         raise ValidationError({"status": ["Permission Denied"]})
-            elif validated_data["status"] in LIMITED_SHIFTING_STATUS:
-                if not has_facility_permission(user, instance.shifting_approving_facility):
+                else:
                     raise ValidationError({"status": ["Permission Denied"]})
+            elif "status" in validated_data:
+                if validated_data["status"] in LIMITED_SHIFTING_STATUS:
+                    if not has_facility_permission(user, instance.shifting_approving_facility):
+                        raise ValidationError({"status": ["Permission Denied"]})
 
         # Dont allow editing origin or patient
         if "orgin_facility" in validated_data:
@@ -140,19 +135,12 @@ class ShiftingSerializer(serializers.ModelSerializer):
                     external_id=shifting_approving_facility_external_id
                 ).id
 
-        assigned = False
         if "assigned_facility" in validated_data:
             assigned_facility_external_id = validated_data.pop("assigned_facility")["external_id"]
             if assigned_facility_external_id:
                 validated_data["assigned_facility_id"] = Facility.objects.get(
                     external_id=assigned_facility_external_id
                 ).id
-                assigned = True
-
-        if "status" in validated_data:
-            if validated_data["status"] in RECIEVING_REQUIRED_STATUS:
-                if (not instance.assigned_facility) and (not assigned):
-                    raise ValidationError({"status": ["Destination Facility is required for moving to this stage."]})
 
         instance.last_edited_by = self.context["request"].user
 
@@ -160,16 +148,15 @@ class ShiftingSerializer(serializers.ModelSerializer):
 
         new_instance = super().update(instance, validated_data)
 
-        if "status" in validated_data:
-            if validated_data["status"] != old_status:
-                if validated_data["status"] == 40:
-                    NotificationGenerator(
-                        event=Notification.Event.SHIFTING_UPDATED,
-                        caused_by=self.context["request"].user,
-                        caused_object=ShiftingRequest.objects.get(id=new_instance.id),
-                        facility=new_instance.shifting_approving_facility,
-                        notification_mediums=[Notification.Medium.SYSTEM.value, Notification.Medium.SMS.value],
-                    ).generate()
+        if validated_data["status"] != old_status:
+            if validated_data["status"] == 40:
+                NotificationGenerator(
+                    event=Notification.Event.SHIFTING_UPDATED,
+                    caused_by=self.context["request"].user,
+                    caused_object=new_instance,
+                    facility=new_instance.shifting_approving_facility,
+                    generate_sms=True,
+                ).generate()
 
         return new_instance
 

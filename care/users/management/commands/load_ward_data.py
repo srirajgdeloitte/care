@@ -21,22 +21,6 @@ class Command(BaseCommand):
         parser.add_argument("folder", help="path to the folder of JSONs")
 
     def handle(self, *args, **options) -> Optional[str]:
-        def int_or_zero(value):
-            try:
-                int(value)
-                return value
-            except:
-                return 0
-
-        def get_ward_number(ward):
-            if "ward_number" in ward:
-                return int_or_zero(ward["ward_number"])
-            return int_or_zero(ward["ward_no"])
-
-        def get_ward_name(ward):
-            if "ward_name" in ward:
-                return ward["ward_name"]
-            return ward["name"]
 
         folder = options["folder"]
         counter = 0
@@ -48,14 +32,13 @@ class Command(BaseCommand):
         LOCAL_BODY_CHOICE_MAP = dict([(c[1][0], c[0]) for c in LOCAL_BODY_CHOICES])
 
         def get_local_body(lb):
-            if not lb["district"]:
-                return None
-            return LocalBody.objects.filter(
+
+            return LocalBody.objects.get(
                 name=lb["name"],
                 district=district_map[lb["district"]],
-                localbody_code=lb.get("localbody_code"),
-                body_type=LOCAL_BODY_CHOICE_MAP.get((lb.get("localbody_code", " "))[0], LOCAL_BODY_CHOICES[-1][0]),
-            ).first()
+                localbody_code=lb["localbody_code"],
+                body_type=LOCAL_BODY_CHOICE_MAP.get((lb["localbody_code"] or " ")[0], LOCAL_BODY_CHOICES[-1][0]),
+            )
 
         for f in glob.glob(f"{folder}/*.json"):
             with open(f"{f}", "r") as data_f:
@@ -65,12 +48,10 @@ class Command(BaseCommand):
                     print("Ward Data not Found ")
                 if data.get("district") is not None:
                     local_body = get_local_body(data)
-                    if not local_body:
-                        continue
                     for ward in wards:
                         counter += 1
                         try:
-                            obj = Ward(local_body=local_body, number=get_ward_number(ward), name=get_ward_name(ward))
+                            obj = Ward(local_body=local_body, number=ward["ward_number"], name=ward["name"])
                             obj.save()
                         except IntegrityError as e:
                             pass

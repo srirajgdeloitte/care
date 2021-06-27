@@ -32,7 +32,6 @@ VEHICLE_CHOICES = [
 
 BREATHLESSNESS_CHOICES = [
     (10, "NOT SPECIFIED"),
-    (15, "NOT BREATHLESS"),
     (20, "MILD"),
     (30, "MODERATE"),
     (40, "SEVERE"),
